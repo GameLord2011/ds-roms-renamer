@@ -1,1 +1,3 @@
 /target
+# Don't want to accedentially publish my testing rom set!
+/tests
