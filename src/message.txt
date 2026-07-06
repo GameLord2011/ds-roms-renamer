@@ -1,0 +1,5 @@
+#### BEGIN MESSAGE TO REVERSE-ENGINEERS ####
+Whatever you're doing, stop. This is (at the time of writing) an open-source project, so
+there is no need to reverse-engineer it. This is a tool that renames DS roms to the rom
+name (in english) and the reigon code (if obvoius).
+#### END MESSAGE TO REVERSE-ENGINEERS ####

@@ -19,4 +19,5 @@ after building it run
 [PATH TO EXECUTABLE HERE] [PATH TO ROMLIST HERE]
 ```
 
-Then, assuming there are no errors, that's it! All your DS roms are now renamed.
+or just run the executable file on it's own and provide the path when prompted. Then,
+assuming there are no errors, that's it! All your DS roms are now renamed.

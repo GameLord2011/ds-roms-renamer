@@ -4,6 +4,16 @@ use std::{
     path::Path,
 };
 
+#[cfg(not(target_os = "macos"))]
+#[used]
+#[unsafe(link_section = ".text")]
+static MESSAGE: [u8; include_bytes!("message.txt").len()] = *include_bytes!("message.txt");
+
+#[cfg(target_os = "macos")]
+#[used]
+#[unsafe(link_section = "__TEXT,__text")]
+static MESSAGE: [u8; include_bytes!("message.txt").len()] = *include_bytes!("message.txt");
+
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect::<Vec<String>>();
     let mut path = String::new();
