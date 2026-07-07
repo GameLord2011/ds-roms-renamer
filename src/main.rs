@@ -25,7 +25,7 @@ fn main() -> std::io::Result<()> {
         stdin().read_line(&mut path).unwrap();
     }
 
-    path = path.trim_matches(&['\n', '\r', '\'', '\"']).try_into().unwrap();
+    path = path.trim_matches(['\n', '\r', '\'', '\"']).into();
 
     if path.is_empty() {
         println!("You can't point me to nothing, sorry!");
@@ -42,9 +42,8 @@ fn main() -> std::io::Result<()> {
 
     for p in paths {
         let mut path: String = p.to_string();
-        path = path.trim_matches(&['\'', '\"']).try_into().unwrap();
+        path = path.trim_matches(['\'', '\"']).into();
 
-        let oldname ;
         let mut og_name_idx;
 
         #[cfg(target_os = "windows")]
@@ -60,37 +59,39 @@ fn main() -> std::io::Result<()> {
         }
 
         og_name_idx += 1;
-        oldname = path.get(og_name_idx..path.len()).unwrap();
+        let oldname = path.get(og_name_idx..path.len()).unwrap();
 
         let rom = fs::read(&path).unwrap();
         // Offset of banner file relative to rom start plus offset of english title
         // relative to banner
         let offset =
-            u32::from_le_bytes([rom[0x68], rom[0x69], rom[0x6A], rom[0x6B]]) as usize + 832; 
+            u32::from_le_bytes([rom[0x68], rom[0x69], rom[0x6A], rom[0x6B]]) as usize + 832;
         let mut name = String::from_utf16_lossy(
             &rom[offset..(offset + 256)]
                 .chunks(2)
                 .map(|e| u16::from_le_bytes(e.try_into().unwrap()))
-                .collect::<Vec<u16>>()
+                .collect::<Vec<u16>>(),
         );
         // Two seperate ones because [TODO: INSERT VALID REASON HERE].
         name = name.replace("\n", " ").replace("\0", "");
         match rom[15] {
             // Standard reigon codes from the gameid (EA doesn't respect this 9 / 10
             // times)
-            0x35 => name = name + "US",
-            0x43 => name = name + "CH",
-            0x4A => name = name + "JP",
-            0x50 => name = name + "EU",
-            0x55 => name = name + "AU",
-            0x5B => name = name + "KE",
-            _ => ()
+            0x35 => name += "US",
+            0x43 => name += "CH",
+            0x4A => name += "JP",
+            0x50 => name += "EU",
+            0x55 => name += "AU",
+            0x5B => name += "KE",
+            _ => (),
         }
 
-        #[cfg(target_os = "windows")] {
-            name = name.replace(&['<', '>', ':', '\"', '/', '\\', '|', '?', '*'], "");
+        #[cfg(target_os = "windows")]
+        {
+            name = name.replace(['<', '>', ':', '\"', '/', '\\', '|', '?', '*'], "");
         }
-        #[cfg(not(target_os = "windows"))] {
+        #[cfg(not(target_os = "windows"))]
+        {
             name = name.replace("/", "");
         }
 
