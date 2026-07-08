@@ -9,74 +9,71 @@ use std::{
 #[unsafe(link_section = ".text")]
 static MESSAGE: [u8; include_bytes!("message.txt").len()] = *include_bytes!("message.txt");
 
+// The XNU kernel has strange executable section handling.
 #[cfg(target_os = "macos")]
 #[used]
 #[unsafe(link_section = "__TEXT,__text")]
 static MESSAGE: [u8; include_bytes!("message.txt").len()] = *include_bytes!("message.txt");
 
 fn main() -> std::io::Result<()> {
-    let args: Vec<String> = std::env::args().collect::<Vec<String>>();
     let mut path = String::new();
-
-    if args.len() > 1 {
-        path = args[1].clone();
-    } else {
-        println!("Whar is the file list (.txt file containing the paths to the ds roms):");
-        stdin().read_line(&mut path).unwrap();
+    let args = std::env::args().nth(1);
+    match args {
+        Some(arg) => path = arg,
+        None => {
+            println!("Whar is the file list (.txt file containing the paths to the ds roms, with each rom path on a seperate line):");
+            stdin().read_line(&mut path).unwrap();
+        }
     }
 
-    path = path.trim_matches(['\n', '\r', '\'', '\"']).into();
+    path = path.trim_matches(['\n', '\r', '\'', '\"']).to_owned();
 
     if path.is_empty() {
-        println!("You can't point me to nothing, sorry!");
         return Err(Error::new(
             ErrorKind::InvalidFilename,
             "You can't point me to nothing, sorry!",
         ));
     }
 
-    let p = Path::new(&path);
-    // I really don't know why a temporary variable is needed here.
-    let temp_1 = fs::read_to_string(p).unwrap();
-    let paths = temp_1.lines().collect::<Vec<&str>>();
+    // I really don't know why a temporary variable is needed here. Now I can (and did)
+    // codegolf this but I really want this one to be feature rich in the future.
+    let temp_1 = fs::read_to_string(path)?;
+    let paths = temp_1.lines();
 
     for p in paths {
-        let mut path: String = p.to_string();
-        path = path.trim_matches(['\'', '\"']).into();
+        let p_str = p.to_string();
+        let path = Path::new(p_str.trim_matches(['\'', '\"']).try_into().unwrap());
 
-        let mut og_name_idx;
+        // This should be a file...
+        let oldname = path.file_name().unwrap().to_str().unwrap();
 
-        #[cfg(target_os = "windows")]
-        {
-            og_name_idx = path.rfind("\\").unwrap_or(0);
-            if og_name_idx == 0 {
-                og_name_idx = path.rfind("/").unwrap();
-            }
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            og_name_idx = new_path.rfind("/").unwrap();
-        }
-
-        og_name_idx += 1;
-        let oldname = path.get(og_name_idx..path.len()).unwrap();
-
-        let rom = fs::read(&path).unwrap();
+        let rom = fs::read(path).unwrap();
         // Offset of banner file relative to rom start plus offset of english title
         // relative to banner
         let offset =
             u32::from_le_bytes([rom[0x68], rom[0x69], rom[0x6A], rom[0x6B]]) as usize + 832;
         let mut name = String::from_utf16_lossy(
-            &rom[offset..(offset + 256)]
+            &rom[offset..offset + 256]
                 .chunks(2)
                 .map(|e| u16::from_le_bytes(e.try_into().unwrap()))
                 .collect::<Vec<u16>>(),
         );
         // Two seperate ones because [TODO: INSERT VALID REASON HERE].
         name = name.replace("\n", " ").replace("\0", "");
+
+        // Invalid symbols for NTOS paths vs. POSIX paths.
+        #[cfg(target_os = "windows")]
+        {
+            name = name.replace(['<', '>', ':', '"', '/', '\\', '|', '?', '*'], "");
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            name = name.replace('/', "");
+        }
+
         match rom[15] {
             // Standard reigon codes from the gameid (EA doesn't respect this 9 / 10
-            // times)
+            // times).
             0x35 => name += "US",
             0x43 => name += "CH",
             0x4A => name += "JP",
@@ -86,43 +83,14 @@ fn main() -> std::io::Result<()> {
             _ => (),
         }
 
-        #[cfg(target_os = "windows")]
-        {
-            name = name.replace(['<', '>', ':', '\"', '/', '\\', '|', '?', '*'], "");
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            name = name.replace("/", "");
-        }
+        name += ".nds";
 
-        println!("{oldname} -> {name}.nds");
+        let new_path = path.parent().unwrap().join(name.clone());
 
-        let mut i: usize;
-        let mut new_path = path.clone();
-
-        #[cfg(target_os = "windows")]
-        {
-            i = new_path.rfind("\\").unwrap_or(0);
-            if i == 0 {
-                i = path.rfind("/").unwrap();
-            }
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            i = new_path.rfind("/").unwrap();
-        }
-
-        i += 1;
-        loop {
-            if i >= new_path.len() {
-                break;
-            }
-            new_path.remove(i);
-        }
-
-        new_path = new_path + &name + ".nds";
         match fs::rename(path, new_path) {
-            Ok(_) => (),
+            Ok(_) => {
+                println!("{oldname} -> {name}");
+            },
             Err(err) => {
                 if err.kind() == ErrorKind::AlreadyExists {
                     println!("Game {name} is duplicated!");
