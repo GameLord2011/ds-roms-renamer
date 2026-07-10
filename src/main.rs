@@ -22,11 +22,11 @@ fn main() -> std::io::Result<()> {
         Some(arg) => path = arg,
         None => {
             println!("Whar is the file list (.txt file containing the paths to the ds roms, with each rom path on a seperate line):");
-            stdin().read_line(&mut path).unwrap();
+            stdin().read_line(&mut path)?;
         }
     }
 
-    path = path.trim_matches(['\n', '\r', '\'', '\"']).to_owned();
+    path = path.trim_matches(['\n', '\r', '\'', '"']).to_owned();
 
     if path.is_empty() {
         return Err(Error::new(
@@ -42,7 +42,7 @@ fn main() -> std::io::Result<()> {
 
     for p in paths {
         let p_str = p.to_string();
-        let path = Path::new(p_str.trim_matches(['\'', '\"']).try_into().unwrap());
+        let path = Path::new(p_str.trim_matches(['\'', '"']).try_into().unwrap());
 
         // This should be a file...
         let oldname = path.file_name().unwrap().to_str().unwrap();
@@ -83,7 +83,8 @@ fn main() -> std::io::Result<()> {
             _ => (),
         }
 
-        name += ".nds";
+        name += ".";
+        name += path.extension().unwrap().to_str().unwrap();
 
         let new_path = path.parent().unwrap().join(name.clone());
 
