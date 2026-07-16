@@ -42,7 +42,7 @@ fn main() -> std::io::Result<()> {
 
     for p in paths {
         let p_str = p.to_string();
-        let path = Path::new(p_str.trim_matches(['\'', '"']).try_into().unwrap());
+        let path = Path::new(p_str.trim_matches(['\'', '"']));
 
         // This should be a file...
         let oldname = path.file_name().unwrap().to_str().unwrap();
