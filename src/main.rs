@@ -21,7 +21,9 @@ fn main() -> std::io::Result<()> {
     match args {
         Some(arg) => path = arg,
         None => {
-            println!("Whar is the file list (.txt file containing the paths to the ds roms, with each rom path on a seperate line):");
+            println!(
+                "Whar is the file list (.txt file containing the paths to the ds roms, with each rom path on a seperate line):"
+            );
             stdin().read_line(&mut path)?;
         }
     }
@@ -43,6 +45,10 @@ fn main() -> std::io::Result<()> {
     for p in paths {
         let p_str = p.to_string();
         let path = Path::new(p_str.trim_matches(['\'', '"']));
+        if path.is_dir() {
+            println!("{} is a folder; skipping.", path.to_str().unwrap());
+            continue;
+        }
 
         // This should be a file...
         let oldname = path.file_name().unwrap().to_str().unwrap();
@@ -91,14 +97,11 @@ fn main() -> std::io::Result<()> {
         match fs::rename(path, new_path) {
             Ok(_) => {
                 println!("{oldname} -> {name}");
-            },
-            Err(err) => {
-                if err.kind() == ErrorKind::AlreadyExists {
-                    println!("Game {name} is duplicated!");
-                } else {
-                    println!("Error encountered: {err}");
-                }
             }
+            Err(err) => match err.kind() {
+                ErrorKind::AlreadyExists => println!("Game {name} is duplicated!"),
+                _ => println!("Error encountered: {err}"),
+            },
         }
     }
 
