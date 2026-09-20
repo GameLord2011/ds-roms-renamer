@@ -1,0 +1,15 @@
+Ds rom renamer command help (all arguments are non case-sensitive):
+
+-h / -?: Show this message
+-f: the roms list or the folder with the roms
+-l / -lang: the language index to use
+    0: Japanese
+    1: English
+    2: French
+    3: German
+    4: Italian
+    5: Spanish
+    6: Chinese (version 0002h and up)
+    7: Korean (version 0003h and up)
+
+All arguments follow then UNIX argument convention and the variables to pass are space seperated. An invalid argument will lead to a program crash.

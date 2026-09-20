@@ -15,18 +15,15 @@ static MESSAGE: [u8; include_bytes!("message.txt").len()] = *include_bytes!("mes
 #[unsafe(link_section = "__TEXT,__text")]
 static MESSAGE: [u8; include_bytes!("message.txt").len()] = *include_bytes!("message.txt");
 
-fn rename_rom<P: AsRef<Path>>(rom: P) {
+fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
     let path = rom.as_ref();
     let oldname = path.file_name().unwrap().to_str().unwrap();
 
     let rom = fs::read(path).unwrap();
-    // Checks if the rom is less then 359 bytes long or the Nintendo logo & associated
-    // checksum are not present at offset `0xC0`. I know that technically the smallest DS
-    // rom is only 352 bytes but that doesn't have a banner file and thus you can't do
-    // this renaming process on it. In the future I __may__ add gameid renaming but I
-    // don't want to right now as that is close to gibberish that no one but technical DS
-    // people can read or understand.
-    if rom.len() < 0x15D
+    // Checks if the rom is less then 350 bytes long or the Nintendo logo & associated
+    // checksum are not present at offset `0xC0`. These are in all retail games because
+    // they use the Nintendo SDK, but might not be in some homebrew games.
+    if rom.len() < 0x140
         || rom[0xC0..0x15E]
             != [
                 0x24, 0xFF, 0xAE, 0x51, 0x69, 0x9A, 0xA2, 0x21, 0x3D, 0x84, 0x82, 0x0A, 0x84, 0xE4,
@@ -45,19 +42,32 @@ fn rename_rom<P: AsRef<Path>>(rom: P) {
     {
         println!(
             "File {oldname} is too short or does not have the Nintendo logo and checksum! Skipping."
-        )
+        );
+        return;
     }
     // From here on out it's assumed that it is a valid ROM.
 
-    // Offset of banner file relative to rom start plus offset of english title
-    // relative to banner
-    let offset = u32::from_le_bytes([rom[0x68], rom[0x69], rom[0x6A], rom[0x6B]]) as usize + 832;
-    let mut name = String::from_utf16_lossy(
-        &rom[offset..offset + 256]
-            .chunks(2)
-            .map(|e| u16::from_le_bytes(e.try_into().unwrap()))
-            .collect::<Vec<u16>>(),
-    );
+    let base_offset = u32::from_le_bytes([rom[0x68], rom[0x69], rom[0x6A], rom[0x6B]]) as usize;
+
+    let mut name: String;
+    if base_offset == 0x0 {
+        println!(
+            "File {oldname} has a banner offset of 0x0! Falling back to game title string (significantly less detailed!)"
+        );
+        // By definition this is valid UTF-8 and if you have a corrupted rom you're kinda
+        // screwed anyway so there's rlly no point in checking if this is valid UTF-8.
+        name = unsafe { String::from_utf8_unchecked(rom[0x0..0xC].to_vec()) };
+    } else {
+        // Offset of banner file relative to rom start plus offset of english title
+        // relative to banner
+        let offset = base_offset + (832 * lang_idx);
+        name = String::from_utf16_lossy(
+            &rom[offset..offset + 256]
+                .chunks(2)
+                .map(|e| u16::from_le_bytes(e.try_into().unwrap()))
+                .collect::<Vec<u16>>(),
+        );
+    }
     // Two seperate ones because [TODO: INSERT VALID REASON HERE].
     name = name.replace("\n", " ").replace("\0", "");
 
@@ -101,15 +111,35 @@ fn rename_rom<P: AsRef<Path>>(rom: P) {
 
 fn main() -> std::io::Result<()> {
     let mut path = String::new();
-    let args = std::env::args().nth(1);
-    match args {
-        Some(arg) => path = arg,
-        None => {
-            println!(
-                "Where are the files? Or a file containing a list of the files on seperate lines is fine too."
-            );
-            stdin().read_line(&mut path)?;
+    let args = std::env::args().collect::<Vec<String>>();
+
+    let mut read_next = true;
+    let mut lang_idx = 1 /* The DS rom rename index, defaults to english (1) */;
+    for (i, arg) in args.iter().enumerate() {
+        if read_next {
+            match arg.to_ascii_lowercase().as_str() {
+                "-h" => {
+                    println!(include_str!("./help.txt"));
+                    return Ok(());
+                }
+                "-l" | "-lang" => {
+                    lang_idx = args[i + 1].parse::<usize>().unwrap_or(1);
+                    read_next = false;
+                }
+                "-f" => {
+                    path = args[i + 1].clone();
+                    read_next = false;
+                }
+                _ => (),
+            }
         }
+    }
+
+    if path.is_empty() {
+        println!(
+            "Where are the files? Or a file containing a list of the files on seperate lines is fine too."
+        );
+        stdin().read_line(&mut path)?;
     }
 
     path = path.trim_matches(['\n', '\r', '\'', '"']).to_owned();
@@ -125,12 +155,12 @@ fn main() -> std::io::Result<()> {
 
     if p.is_dir() {
         for rom in fs::read_dir(p).unwrap().flatten() {
-            rename_rom(rom.path());
+            rename_rom(rom.path(), lang_idx);
         }
     } else if p.is_file() {
         let paths = fs::read_to_string(p).unwrap();
         for p in paths.lines() {
-            rename_rom(Path::new(p.trim_matches(['\n', '\r', '\'', '"'])));
+            rename_rom(Path::new(p.trim_matches(['\n', '\r', '\'', '"'])), lang_idx);
         }
     } else {
         panic!("The path is neither a file nor a directory. Hwat?");
