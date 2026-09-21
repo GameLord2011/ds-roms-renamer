@@ -96,7 +96,7 @@ fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
     name += ".";
     name += path.extension().unwrap().to_str().unwrap();
 
-    let new_path = path.parent().unwrap().join(name.clone());
+    let new_path = path.parent().unwrap().join(&name);
 
     match fs::rename(path, new_path) {
         Ok(_) => {
@@ -116,6 +116,9 @@ fn main() -> std::io::Result<()> {
     let mut read_next = true;
     let mut lang_idx = 1 /* The DS rom rename index, defaults to english (1) */;
     for (i, arg) in args.iter().enumerate() {
+        if i == 0 {
+            continue;
+        } // Skips the program path :P
         if read_next {
             match arg.to_ascii_lowercase().as_str() {
                 "-h" => {
@@ -158,8 +161,7 @@ fn main() -> std::io::Result<()> {
             rename_rom(rom.path(), lang_idx);
         }
     } else if p.is_file() {
-        let paths = fs::read_to_string(p).unwrap();
-        for p in paths.lines() {
+        for p in fs::read_to_string(p).unwrap().lines() {
             rename_rom(Path::new(p.trim_matches(['\n', '\r', '\'', '"'])), lang_idx);
         }
     } else {
