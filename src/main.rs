@@ -27,14 +27,16 @@ fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
         return;
     }
 
+    // See https://problemkaputt.de/gbatek-bios-misc-functions.htm; this was modified to
+    // use the CRC-16-IBM reversed polynomial over the lookup table provided in the
+    // psuedocode because apparently that psuedocode is incorrect.
     let mut crc = 0xFFFF;
     for &i in rom[0x0..0x15E].iter() {
         crc ^= i as u16;
         for _ in 0..8 {
-            let k = crc & 1 != 0;
+            let carry = crc & 1 != 0;
             crc >>= 1;
-            if k {
-                // NDS CRC-16 Polynomial.
+            if carry {
                 crc ^= 0xA001;
             }
         }
@@ -54,11 +56,12 @@ fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
         println!(
             "File {oldname} has a banner offset of 0x0! Falling back to game title string (significantly less detailed!)"
         );
-        // By definition this is valid UTF-8 and if you have a corrupted rom you're kinda
-        // screwed anyway so there's rlly no point in checking if this is valid UTF-8.
+        // By definition this is valid UTF-8 and if you have a corrupted rom with a valid
+        // CRC-16 you're kinda screwed anyway so there's rlly no point in checking if
+        // this is valid UTF-8.
         name = unsafe { String::from_utf8_unchecked(rom[0x0..0xC].to_vec()) };
     } else {
-        // Offset of banner file relative to rom start plus offset of english title
+        // Offset of banner file relative to rom start plus offset of chosen title
         // relative to banner
         let offset = base_offset + (832 * lang_idx);
         name = String::from_utf16_lossy(
