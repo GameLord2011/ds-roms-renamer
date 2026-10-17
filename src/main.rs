@@ -1,7 +1,8 @@
 use std::{
-    fs,
-    io::{Error, ErrorKind, stdin},
+    fs::{rename, read, read_dir, read_to_string},
+    io::{Error, ErrorKind, stdin, Result},
     path::Path,
+    env::args,
 };
 
 #[cfg(not(target_os = "macos"))]
@@ -19,7 +20,7 @@ fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
     let path = rom.as_ref();
     let oldname = path.file_name().unwrap().to_str().unwrap();
 
-    let rom = fs::read(path).unwrap();
+    let rom = read(path).unwrap();
     if rom.len() < 0x140 {
         println!(
             "File {oldname} is too short. Skipping."
@@ -47,6 +48,10 @@ fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
         return;
     }
 
+    if rom[0x15C..0x15E] != [0x56, 0xCF] {
+        println!("The ds title checksum is wrong for {oldname}! That means that this ROM may not be runnable.");
+    }
+
     // From here on out it's assumed that it is a valid ROM.
 
     let base_offset = u32::from_le_bytes([rom[0x68], rom[0x69], rom[0x6A], rom[0x6B]]) as usize;
@@ -57,7 +62,7 @@ fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
             "File {oldname} has a banner offset of 0x0! Falling back to game title string (significantly less detailed!)"
         );
         // By definition this is valid UTF-8 and if you have a corrupted rom with a valid
-        // CRC-16 you're kinda screwed anyway so there's rlly no point in checking if
+        // CRC-16 you're kinda screwed anyway so there's really no point in checking if
         // this is valid UTF-8.
         name = unsafe { String::from_utf8_unchecked(rom[0x0..0xC].to_vec()) };
     } else {
@@ -101,7 +106,7 @@ fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
 
     let new_path = path.parent().unwrap().join(&name);
 
-    match fs::rename(path, new_path) {
+    match rename(path, new_path) {
         Ok(_) => {
             println!("{oldname} -> {name}");
         }
@@ -112,9 +117,9 @@ fn rename_rom<P: AsRef<Path>>(rom: P, lang_idx: usize) {
     }
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<()> {
     let mut path = String::new();
-    let args = std::env::args().collect::<Vec<String>>();
+    let args = args().collect::<Vec<String>>();
 
     let mut read_next = true;
     let mut lang_idx = 1 /* The DS rom rename index, defaults to english (1) */;
@@ -160,11 +165,11 @@ fn main() -> std::io::Result<()> {
     let p = Path::new(&path);
 
     if p.is_dir() {
-        for rom in fs::read_dir(p).unwrap().flatten() {
+        for rom in read_dir(p).unwrap().flatten() {
             rename_rom(rom.path(), lang_idx);
         }
     } else if p.is_file() {
-        for p in fs::read_to_string(p).unwrap().lines() {
+        for p in read_to_string(p).unwrap().lines() {
             rename_rom(Path::new(p.trim_matches(['\n', '\r', '\'', '"'])), lang_idx);
         }
     } else {
