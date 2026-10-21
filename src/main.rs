@@ -129,12 +129,15 @@ fn main() -> Result<()> {
         } // Skips the program path :P
         if read_next {
             match arg.to_ascii_lowercase().as_str() {
-                "-h" => {
+                "-?" | "-h" | "--help" => {
                     println!(include_str!("./help.txt"));
                     return Ok(());
                 }
-                "-l" | "-lang" => {
-                    lang_idx = args[i + 1].parse::<usize>().unwrap_or(1);
+                "-l" | "--lang" => {
+                    lang_idx = args[i + 1].parse::<usize>().unwrap_or_else(|_| {
+                        println!("Invalid number detected for lang index! Falling back to language 1 (english)");
+                        1
+                    });
                     read_next = false;
                 }
                 "-f" => {

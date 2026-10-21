@@ -1,8 +1,8 @@
 Ds rom renamer command help (all arguments are non case-sensitive):
 
--h / -?: Show this message
+-? / -h / --help: Show this message
 -f: the roms list or the folder with the roms
--l / -lang: the language index to use
+-l / --lang: the language index to use
     0: Japanese
     1: English
     2: French
